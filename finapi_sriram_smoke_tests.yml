@@ -1,0 +1,21 @@
+trigger: none
+
+pool:
+  name: student-lab-pool
+
+steps:
+  - script: |
+      /azagent/venv/bin/pip3 install pytest requests
+    displayName: "Install dependencies"
+
+  - script: |
+      /azagent/venv/bin/python3 -m pytest -v --tb=line  -W "ignore::DeprecationWarning" -s tests/smoke_tests.py --junitxml=smoke-results.xml
+    displayName: "Run full smoke test suite"
+
+
+  - task: PublishTestResults@2
+    condition: always()
+    inputs:
+      testResultsFiles: 'smoke-results.xml'
+      testRunTitle: 'Post-deployment Smoke Test'
+      failTaskOnFailedTests: false
