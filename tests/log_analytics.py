@@ -24,6 +24,8 @@ def send_log_to_loganalytics(log_type, log_data):
     ).decode()
 
     uri = f'https://{workspace_id}.ods.opinsights.azure.com/api/logs?api-version=2016-04-01'
+    print("Workspace ID:", workspace_id) 
+    print("Log Analytics URL:", url)
     headers = {
         'Content-Type': 'application/json',
         'Log-Type': log_type,
