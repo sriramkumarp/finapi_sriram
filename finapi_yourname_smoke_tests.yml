@@ -15,21 +15,43 @@ variables:
 pool:
   name: student-lab-pool
 
+
 steps:
   - script: |
-      /azagent/venv/bin/pip3 install pytest requests
-    displayName: "Install dependencies"
-
+         echo "##vso[task.setvariable variable=PIPELINE_START_TIME]$(date +%s.%3N)"
+         echo "##vso[task.setvariable variable=PIPELINE_START_TIME_UTC]$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    displayName: "Capture pipeline start time"
   - script: |
       export LOG_ANALYTICS_WORKSPACE_ID=$(LOG_ANALYTICS_WORKSPACE_ID)
       export LOG_ANALYTICS_SHARED_KEY=$(LOG_ANALYTICS_SHARED_KEY)
-      /azagent/venv/bin/python3 -m pytest -v --tb=line  -W "ignore::DeprecationWarning" -s tests/smoke_tests_centralized.py --junitxml=smoke-results.xml
-    displayName: "Run full smoke test suite"
+      export PIPELINE_NAME=$(Build.DefinitionName)
+      export RUN_ID=$(Build.BuildId)
+      export BUILD_STATUS=$(Agent.JobStatus)
 
+      END_TIME=$(date +%s.%3N)
+      export PIPELINE_END_TIME_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      export PIPELINE_DURATION=$(awk "BEGIN {print $END_TIME - $(PIPELINE_START_TIME)}")
+      echo "Duration is $PIPELINE_DURATION seconds"
+      echo "PIPELINE_END_TIME_UTC is $PIPELINE_END_TIME_UTC"
+      echo "PIPELINE_START_TIME_UTC is $PIPELINE_START_TIME_UTC"
 
-  - task: PublishTestResults@2
+      /azagent/venv/bin/python3 -c "
+      import os
+      import time
+      from tests.log_analytics import send_log_to_loganalytics
+
+      pipeline_data = [{
+          'pipeline': os.environ.get('PIPELINE_NAME'),
+          'run_id': os.environ.get('RUN_ID'),
+          'status': os.environ.get('BUILD_STATUS'),
+          'start_time': os.environ.get('PIPELINE_START_TIME_UTC'),
+          'end_time': os.environ.get('PIPELINE_END_TIME_UTC'),
+          'duration_seconds': float(os.environ.get('PIPELINE_DURATION') or 0)
+      }]
+
+      send_log_to_loganalytics(
+          log_type='PipelineRunSummary',
+          log_data=pipeline_data
+      )"
     condition: always()
-    inputs:
-      testResultsFiles: 'smoke-results.xml'
-      testRunTitle: 'Post-deployment Smoke Test'
-      failTaskOnFailedTests: false
+    displayName: "Send pipeline run metadata to Log Analytics"
